@@ -584,6 +584,51 @@ LanceDB 表 `memories`：
 
 请升级到 **memory-lancedb-pro >= 1.0.14**。插件已对这些字段统一做 `Number(...)` 转换后再参与运算（例如：计算分数、按时间排序）。
 
+## AI Agent 铁律（Iron Rules）
+
+> **OpenClaw 用户**：将下方代码块复制到你的 `AGENTS.md` 中，让 Agent 自动遵守这些规则。
+
+```markdown
+## Rule 6 — 双层记忆存储（铁律）
+
+Every pitfall/lesson learned → IMMEDIATELY store TWO memories to LanceDB before moving on:
+
+- **Technical layer**: Pitfall: [symptom]. Cause: [root cause]. Fix: [solution]. Prevention: [how to avoid]
+  (category: fact, importance ≥ 0.8)
+- **Principle layer**: Decision principle ([tag]): [behavioral rule]. Trigger: [when it applies]. Action: [what to do]
+  (category: decision, importance ≥ 0.85)
+- After each store, immediately `memory_recall` with anchor keywords to verify retrieval.
+  If not found, rewrite and re-store.
+- Missing either layer = incomplete.
+  Do NOT proceed to next topic until both are stored and verified.
+- Also update relevant SKILL.md files to prevent recurrence.
+
+## Rule 7 — LanceDB 卫生
+
+Entries must be short and atomic (< 500 chars). Never store raw conversation summaries, large blobs, or duplicates.
+Prefer structured format with keywords for retrieval.
+
+## Rule 8 — Recall before retry
+
+On ANY tool failure, repeated error, or unexpected behavior, ALWAYS `memory_recall` with relevant keywords
+(error message, tool name, symptom) BEFORE retrying. LanceDB likely already has the fix.
+Blind retries waste time and repeat known mistakes.
+
+## Rule 10 — 编辑前确认目标代码库
+
+When working on memory plugins, confirm you are editing the intended package
+(e.g., `memory-lancedb-pro` vs built-in `memory-lancedb`) before making changes;
+use `memory_recall` + filesystem search to avoid patching the wrong repo.
+
+## Rule 20 — 插件代码变更必须清 jiti 缓存（MANDATORY）
+
+After modifying ANY `.ts` file under `plugins/`, MUST run `rm -rf /tmp/jiti/` BEFORE `openclaw gateway restart`.
+jiti caches compiled TS; restart alone loads STALE code. This has caused silent bugs multiple times.
+Config-only changes do NOT need cache clearing.
+```
+
+---
+
 ## 依赖
 
 | 包 | 用途 |
