@@ -283,7 +283,7 @@ git clone https://github.com/CortexReach/memory-lancedb-pro-skill.git ~/.opencla
 
 | File | Purpose |
 | --- | --- |
-| `index.ts` | Plugin entry point. Registers with OpenClaw Plugin API, parses config, mounts lifecycle hooks |
+| `index.ts` | Plugin entry point. Registers with OpenClaw Plugin API, parses config, mounts lifecycle hooks via `api.on()` and command hooks via `api.registerHook()` |
 | `openclaw.plugin.json` | Plugin metadata + full JSON Schema config declaration |
 | `cli.ts` | CLI commands: `memory-pro list/search/stats/delete/delete-bulk/export/import/reembed/upgrade/migrate` |
 | `src/store.ts` | LanceDB storage layer. Table creation / FTS indexing / Vector search / BM25 search / CRUD |
@@ -358,7 +358,9 @@ Query → BM25 FTS ─────┘
 ### Auto-Capture & Auto-Recall
 
 - **Auto-Capture** (`agent_end`): extracts preference/fact/decision/entity from conversations, deduplicates, stores up to 3 per turn
-- **Auto-Recall** (`before_agent_start`): injects `<relevant-memories>` context (up to 3 entries)
+- **Auto-Recall** (`before_prompt_build`): injects `<relevant-memories>` context (up to 3 entries)
+
+> **Note (v1.1.0-beta.9+):** Auto-recall now uses the `before_prompt_build` hook instead of the deprecated `before_agent_start`. See [Hook Adaptation](#hook-adaptation-openclaw-20263) below for details.
 
 ### Noise Filtering & Adaptive Retrieval
 
@@ -698,6 +700,79 @@ Common `metadata` keys in v1.1.0: `l0_abstract`, `l1_overview`, `l2_content`, `m
 On LanceDB 0.26+, some numeric columns may be returned as `BigInt`. Upgrade to **memory-lancedb-pro >= 1.0.14** — this plugin now coerces values using `Number(...)` before arithmetic.
 
 </details>
+
+---
+
+## Hook Adaptation (OpenClaw 2026.3+)
+
+Starting with v1.1.0-beta.9, the plugin's lifecycle hooks have been updated for compatibility with the refactored OpenClaw plugin system.
+
+### What changed
+
+| Hook | Before | After | Why |
+|------|--------|-------|-----|
+| Auto-recall | `before_agent_start` | `before_prompt_build` (priority 10) | `before_agent_start` is deprecated; `before_prompt_build` is the recommended hook for prompt mutation |
+| Reflection invariants | `before_agent_start` | `before_prompt_build` (priority 12) | Same reason as above |
+| Reflection derived focus | `before_prompt_build` | `before_prompt_build` (priority 15) | Unchanged event, added explicit priority |
+| All other lifecycle hooks | unchanged | unchanged | `agent_end`, `after_tool_call`, `session_end`, `message_received`, `before_message_write` |
+
+### Hook API distinction
+
+OpenClaw exposes two hook registration methods. They write to **different registries**:
+
+| Method | Registry | Dispatch | Use for |
+|--------|----------|----------|---------|
+| `api.on(event, handler, opts)` | `registry.typedHooks` | Dispatched by the lifecycle hook runner | Lifecycle events: `before_prompt_build`, `agent_end`, `after_tool_call`, `session_end`, `message_received`, `before_message_write` |
+| `api.registerHook(event, handler, opts)` | `registry.hooks` | Dispatched by the internal hook system | Command/bootstrap events: `command:new`, `command:reset`, `agent:bootstrap` |
+
+Using the wrong method causes hooks to register silently without firing. This plugin uses `api.on()` for all lifecycle hooks and `api.registerHook()` for command hooks.
+
+### Verifying hooks after install
+
+```bash
+openclaw plugins info memory-lancedb-pro
+```
+
+You should see:
+
+```
+Legacy before_agent_start: no
+
+Typed hooks:
+  agent_end
+  before_message_write
+  before_prompt_build (priority 10)
+  message_received
+
+Custom hooks:
+  memory-lancedb-pro-session-memory: command:new
+```
+
+If `Legacy before_agent_start: yes` appears, you are running an older version of the plugin.
+
+### Migration from older versions
+
+If you are upgrading from v1.1.0-beta.8 or earlier:
+
+1. Replace the plugin files (copy or `openclaw plugins install`)
+2. Clear the jiti cache: `rm -rf /tmp/jiti/`
+3. Restart the gateway: `openclaw gateway restart`
+4. Verify: `openclaw plugins info memory-lancedb-pro` should show `Legacy before_agent_start: no`
+
+No config changes or data migration required. All existing memories, scopes, and settings are preserved.
+
+### OpenClaw version requirements
+
+- **Minimum:** OpenClaw 2026.3.12
+- **Recommended:** OpenClaw 2026.3.22+ (includes `before_prompt_build` typed hook support and plugin-entry subpath exports)
+
+To upgrade OpenClaw:
+
+```bash
+npm update -g openclaw
+openclaw --version    # verify >= 2026.3.22
+openclaw doctor --fix # resolve any stale config after upgrade
+```
 
 ---
 

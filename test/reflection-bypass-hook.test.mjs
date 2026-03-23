@@ -56,7 +56,11 @@ function createPluginApiHarness({ pluginConfig, resolveRoot }) {
       list.push({ handler, meta });
       eventHandlers.set(eventName, list);
     },
-    registerHook() {},
+    registerHook(eventName, handler, opts) {
+      const list = eventHandlers.get(eventName) || [];
+      list.push({ handler, meta: opts });
+      eventHandlers.set(eventName, list);
+    },
   };
 
   return { api, eventHandlers, logs };
@@ -111,15 +115,15 @@ async function invokeReflectionHooks({ workDir, agentId, explicitAgentId = agent
 
   memoryLanceDBProPlugin.register(harness.api);
 
-  const startHooks = harness.eventHandlers.get("before_agent_start") || [];
   const promptHooks = harness.eventHandlers.get("before_prompt_build") || [];
 
-  assert.equal(startHooks.length, 1, "expected exactly one before_agent_start hook");
-  assert.equal(promptHooks.length, 1, "expected exactly one before_prompt_build hook");
+  assert.equal(promptHooks.length, 2, "expected exactly two before_prompt_build hooks (invariants + derived)");
 
+  // Sort by priority: lower priority value runs first (invariants=12, derived=15)
+  const sorted = [...promptHooks].sort((a, b) => (a.meta?.priority ?? 99) - (b.meta?.priority ?? 99));
   const ctx = { sessionKey: `agent:${agentId}:test`, agentId: explicitAgentId };
-  const startResult = await startHooks[0].handler({}, ctx);
-  const promptResult = await promptHooks[0].handler({}, ctx);
+  const startResult = await sorted[0].handler({}, ctx);   // invariants (priority 12)
+  const promptResult = await sorted[1].handler({}, ctx);   // derived (priority 15)
 
   return { harness, startResult, promptResult };
 }

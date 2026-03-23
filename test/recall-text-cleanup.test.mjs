@@ -55,7 +55,11 @@ function createPluginApiHarness({ pluginConfig, resolveRoot }) {
       list.push({ handler, meta });
       eventHandlers.set(eventName, list);
     },
-    registerHook() {},
+    registerHook(eventName, handler, opts) {
+      const list = eventHandlers.get(eventName) || [];
+      list.push({ handler, meta: opts });
+      eventHandlers.set(eventName, list);
+    },
   };
 
   return { api, eventHandlers };
@@ -374,8 +378,8 @@ describe("recall text cleanup", () => {
 
     memoryLanceDBProPlugin.register(harness.api);
 
-    const hooks = harness.eventHandlers.get("before_agent_start") || [];
-    assert.equal(hooks.length, 1, "expected exactly one before_agent_start hook for this config");
+    const hooks = harness.eventHandlers.get("before_prompt_build") || [];
+    assert.equal(hooks.length, 1, "expected at least one before_prompt_build hook for this config");
     const [{ handler: autoRecallHook }] = hooks;
     assert.equal(typeof autoRecallHook, "function");
 
@@ -442,7 +446,7 @@ describe("recall text cleanup", () => {
     });
 
     memoryLanceDBProPlugin.register(harness.api);
-    const hooks = harness.eventHandlers.get("before_agent_start") || [];
+    const hooks = harness.eventHandlers.get("before_prompt_build") || [];
     const [{ handler: autoRecallHook }] = hooks;
     const output = await autoRecallHook(
       { prompt: "Please recall what I mentioned before about this task." },
@@ -474,7 +478,7 @@ describe("recall text cleanup", () => {
       },
     });
     memoryLanceDBProPlugin.register(harness.api);
-    const hooks = harness.eventHandlers.get("before_agent_start") || [];
+    const hooks = harness.eventHandlers.get("before_prompt_build") || [];
     const [{ handler: autoRecallHook }] = hooks;
     const output = await autoRecallHook(
       { prompt: "Please recall what I mentioned before about this task." },
@@ -569,7 +573,7 @@ describe("recall text cleanup", () => {
 
     memoryLanceDBProPlugin.register(harness.api);
 
-    const hooks = harness.eventHandlers.get("before_agent_start") || [];
+    const hooks = harness.eventHandlers.get("before_prompt_build") || [];
     assert.equal(hooks.length, 1);
     const [{ handler: autoRecallHook }] = hooks;
 
@@ -625,7 +629,7 @@ describe("recall text cleanup", () => {
 
     memoryLanceDBProPlugin.register(harness.api);
 
-    const hooks = harness.eventHandlers.get("before_agent_start") || [];
+    const hooks = harness.eventHandlers.get("before_prompt_build") || [];
     assert.equal(hooks.length, 1);
     const [{ handler: autoRecallHook }] = hooks;
 
